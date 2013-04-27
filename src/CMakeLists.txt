@@ -1,0 +1,12 @@
+FILE( GLOB RIBPL_SRCS [^.]*.cpp )
+FILE( GLOB RIBPL_HPPS [^.]*.hpp)
+ 
+add_library(rbipl SHARED ${RIBPL_SRCS} ${RIBPL_HPPS} )
+ 
+install(TARGETS rbipl
+  # IMPORTANT: Add the foo library to the "export-set"
+  EXPORT RBIPLTargets
+  RUNTIME DESTINATION "${INSTALL_BIN_DIR}" COMPONENT bin
+  LIBRARY DESTINATION "${INSTALL_LIB_DIR}" COMPONENT shlib
+  PUBLIC_HEADER DESTINATION "${INSTALL_INCLUDE_DIR}/rbipl"
+    COMPONENT dev)
