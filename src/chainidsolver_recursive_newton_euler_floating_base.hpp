@@ -44,11 +44,15 @@ namespace KDL{
          * \param chain The kinematic chain to calculate the inverse dynamics for, an internal copy will be made.
          * \param grav The gravity vector to use during the calculation.
          */
-        ChainIdSolver_RNE_FB(const Chain& chain);
+        ChainIdSolver_RNE_FB(const Chain& chain,Vector grav=Vector::Zero());
+
+         
+         
         ~ChainIdSolver_RNE_FB(){};
         
         /**
-         * Function to calculate from Cartesian forces to joint torques.
+         * Function to calculate from Cartesian forces to joint torques, 
+         * for a fixed base.
          * Input parameters;
          * \param q The current joint positions
          * \param q_dot The current joint velocities
@@ -57,7 +61,29 @@ namespace KDL{
          * Output parameters:
          * \param torques the resulting torques for the joints
          */
-        int CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Twist& base_velocity, const Twist& base_acceleration, const Wrenches& f_ext,JntArray &torques, Wrench & base_wrench);
+        int CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Wrenches& f_ext,JntArray &torques);
+
+        /** 
+			 * Calculate floating base inverse dynamics, from joint positions, velocity, acceleration, 
+             * base velocity, base acceleration, external forces
+			 * to joint torques/forces.
+			 * 
+			 * @param q input joint positions
+			 * @param q_dot input joint velocities
+			 * @param q_dotdot input joint accelerations
+             * @param base_velocity velocity of the floating base 
+             *        (the linear part has no influence on the dynamics)
+             * @param base_acceleration acceleration of the floating base 
+             *        (proper acceleration, considers also gravitational acceleration)
+             * @param f_ext external forces
+			 *
+			 * @param torque output joint torques
+			 * @param base_wrench output base wrench
+             * 
+			 * @return if < 0 something went wrong
+			 */
+        int CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Twist& base_velocity, const Twist& base_acceleration, const Wrenches& f_ext,JntArray &torques, Wrench& base_force);
+
 
     private:
         Chain chain;
@@ -68,6 +94,8 @@ namespace KDL{
         std::vector<Twist> v;
         std::vector<Twist> a;
         std::vector<Wrench> f;
+        Twist ag;
+
     };
 }
 

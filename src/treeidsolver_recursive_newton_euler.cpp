@@ -1,3 +1,5 @@
+// Copyright (C)   2013 Silvio Traversaro - CoDyCo project http://www.codyco.eu/
+
 // Copyright  (C)  2009  Ruben Smits <ruben dot smits at mech dot kuleuven dot be>
 
 // Version: 1.0

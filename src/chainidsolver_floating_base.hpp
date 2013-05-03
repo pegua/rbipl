@@ -32,15 +32,29 @@ namespace KDL
     typedef std::vector<Wrench> Wrenches;
 
 	/**
-	 * \brief This <strong>abstract</strong> class encapsulates the inverse
-	 * dynamics solver for a KDL::Chain.
+	 * \brief This <strong>abstract</strong> class encapsulates both the floating base
+     * and the fixed base inverse dynamics solver for a KDL::Chain.
 	 *
 	 */
 	class ChainIdSolver_FB
 	{
 		public:
+            /** 
+			 * Calculate fixed base inverse dynamics, from joint positions, velocity, acceleration, external forces
+			 * to joint torques/forces.
+			 * 
+			 * @param q input joint positions
+			 * @param q_dot input joint velocities
+			 * @param q_dotdot input joint accelerations
+			 *
+			 * @param torque output joint torques
+			 * 
+			 * @return if < 0 something went wrong
+			 */
+        virtual int CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Wrenches& f_ext,JntArray &torques)=0;
+
 			/** 
-			 * Calculate inverse dynamics, from joint positions, velocity, acceleration, 
+			 * Calculate floating base inverse dynamics, from joint positions, velocity, acceleration, 
              * base velocity, base acceleration, external forces
 			 * to joint torques/forces.
 			 * 
