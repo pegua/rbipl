@@ -21,23 +21,29 @@
 
 namespace RBIPL {
     
-    //Reconsider their location !!
-    Eigen::VectorXd ChainInertialParameters::getInertialParameters()
+    void ChainInertialParameters::updateParams()
     {
         Segment seg;
         for(unsigned int i = 0; i < ref_chain.getNrOfSegments(); i++ ) {
             ref_chain.getSegment(i,seg);
             chain_param.segment(i*10,10) = Vectorize(seg.getInertia());
         }
+    }
+    
+    //Reconsider their location !!
+    Eigen::VectorXd ChainInertialParameters::getInertialParameters()
+    {
+        if( chain_param.rows() != 10*ref_chain.getNrOfSegments() ) updateParams();
         return chain_param;
     }
     
     //Reconsider their location !! (not important that they are real time safe)
     bool ChainInertialParameters::changeInertialParameters(const Eigen::VectorXd & new_chain_param,  Chain& new_chain)
     {
-        Segment seg;
         //assert( new_chain_param.size() == chain_param.size() )
-        
+        if( chain_param.rows() != 10*ref_chain.getNrOfSegments() ) updateParams();
+
+        Segment seg;
         for(unsigned int i = 0; i < ref_chain.getNrOfSegments(); i++ ) {
             ref_chain.getSegment(i,seg);
             seg.setInertia(deVectorize(chain_param.segment(i*10,10)));
@@ -57,6 +63,7 @@ namespace RBIPL {
                                                                       has_joint(ns)
     {
         chain_param = Eigen::VectorXd(10*ns);
+        updateParams();
     }
     
 

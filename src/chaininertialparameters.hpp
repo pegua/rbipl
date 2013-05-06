@@ -43,6 +43,8 @@ namespace RBIPL {
             Twist a0;
             Twist v0;
             
+            void updateParams();
+            
         public:
             /**
              * Constructor, it will allocate all the necessary memory.

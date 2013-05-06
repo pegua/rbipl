@@ -42,10 +42,10 @@ namespace KDL{
     public:
         /**
          * Constructor for the solver, it will allocate all the necessary memory
-         * \param chain The kinematic chain to calculate the inverse dynamics for, an internal copy will be made.
+         * \param tree The kinematic tree to calculate the inverse dynamics for, an internal copy will be made.
          * \param grav The gravity vector to use during the calculation.
          */
-        TreeIdSolver_RNE(const Tree& tree,Vector grav);
+        TreeIdSolver_RNE(const Tree& tree,Vector grav=Vector::Zero(),TreeSerialization serialization=TreeSerialization(tree));
         ~TreeIdSolver_RNE(){};
         
         /**
@@ -59,7 +59,28 @@ namespace KDL{
          * \param torques the resulting torques for the joints
          */
         int CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Wrenches& f_ext,JntArray &torques);
-        int CartToJnt(const std::vector<double> &q, const std::vector<double> &q_dot, const std::vector<double> &q_dotdot, const Wrenches& f_ext,JntArray &torques);
+        
+        /** 
+         * Calculate floating base inverse dynamics, from joint positions, velocity, acceleration, 
+         * base velocity, base acceleration, external forces
+         * to joint torques/forces.
+         * 
+         * @param q input joint positions
+         * @param q_dot input joint velocities
+         * @param q_dotdot input joint accelerations
+         * @param base_velocity velocity of the floating base 
+         *        (the linear part has no influence on the dynamics)
+         * @param base_acceleration acceleration of the floating base 
+         *        (proper acceleration, considers also gravitational acceleration)
+         * @param f_ext external forces
+         *
+         * @param torque output joint torques
+         * @param base_wrench output base wrench
+         * 
+         * @return if < 0 something went wrong
+         */
+        int CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Twist& base_velocity, const Twist& base_acceleration, const Wrenches& f_ext,JntArray &torques, Wrench& base_force);
+
 
 
     private:
@@ -69,32 +90,25 @@ namespace KDL{
 			Twist v;
 			Twist a;
 			Wrench f;
-			Wrench f_ext;
 		};
-		struct JntEntry{
-			int idx;
-			double torque;
-		};
-			
-    
-    
-    
+
+
         Tree tree;
         std::string root_name;
-        //std::map<std::string, Frame> X;
-        //std::map<std::string, Twist> S;
-        //std::map<std::string, Twist> v;
-        //std::map<std::string, Twist> a;
-        //std::map<std::string, Wrench> f;
-        //std::map<std::string, Wrench> f_ext_map;
-        //much faster not to have to look up each individual element
-        //better to group the variables together and only have one lookup
-        //before was nearly 25% to look up each individually
-        std::map<std::string, Entry> db;	///indexed by segment name
-        std::map<std::string, JntEntry> jntdb;/// indexed by joint name
         
-        //std::map<std::string, double> torque_map; /// takes in joint names
-        //std::map<std::string, int> name2idx;
+        
+        std::vector<Entry> db;	///indexed by segment id
+        //std::vector<double> jntdb;/// indexed by joint id
+        
+        std::vector<unsigned int> mu_root; //set of childrens of root
+        std::vector< std::vector<unsigned int> > mu; //set of childrens of each segment
+        std::vector< int > lambda //set of parent of each segment
+        std::vector<unsigned int> link2joint;
+        
+        std::vector< unsigned int > recursion_order;
+        
+        std::vector<SegmentMap::const_iterator> seg_vector;
+        
         Twist ag;
     };
 }

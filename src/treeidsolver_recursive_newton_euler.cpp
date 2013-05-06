@@ -27,9 +27,6 @@
 
 //versione extracted from r2_controllers
 
-
-
-
 #include "treeidsolver_recursive_newton_euler.hpp"
 #include "kdl/frames_io.hpp"
 
@@ -38,223 +35,130 @@ using namespace std;
 
 namespace KDL{
     
-    TreeIdSolver_RNE::TreeIdSolver_RNE(const Tree& tree_,Vector grav)
+    TreeIdSolver_RNE::TreeIdSolver_RNE(const Tree& tree_,Vector grav,TreeSerialization serialization)
     :tree(tree_)
     {
+        //should compile only in debug mode
+        assert(serialization.is_consistent(tree));
+        
+        //Get root name
 		root_name = tree.getRootSegment()->first;
 		
+        //Initializing gravitational acceleration (if any)
         ag=-Twist(grav,Vector::Zero());
+        
+        //the deprecated method is more efficient
         const SegmentMap& sm = tree.getSegments();
         
-        int jnt =0;
-        for( SegmentMap::const_iterator i=sm.begin(); i!=sm.end(); ++i ){
-			const Segment& s = i->second.segment;
-			const Joint& j = s.getJoint();
-			if( j.getType() != Joint::None ){
-				JntEntry& je = jntdb[ j.getName() ];
-				je.idx = jnt++;
-			}
-				
-				
-			const string& name = i->first;
-			db[ name ]; // create the element here, but don't have anything to fill in
-			/*
-			X[ name ];
-			S[ name ];
-			v[ name ];
-			a[ name ];
-			f[ name ];
-			f_ext_map[ name ];
-			*/
-		}
-    }
-
-    int TreeIdSolver_RNE::CartToJnt(const std::vector<double> &q, const std::vector<double> &q_dot, const std::vector<double> &q_dotdot, const Wrenches& f_ext,JntArray &torques)
-    {
-        //Check sizes when in debug mode
-        //if(q.rows()!=nj || q_dot.rows()!=nj || q_dotdot.rows()!=nj || torques.rows()!=nj || f_ext.size()!=ns)
-        //return -1;
+        //allocate vectors
+        db.resize(tree.getNrOfSegments());
+        mu_root.resize(0);
+        mu.resize(tree.getNrOfSegments(),std::vector<unsigned int>(0));
+        lambda.resize(tree.getNrOfSegments());
         
-        {
-			const SegmentMap& sm = tree.getSegments();
-			int cnt =0;
-			for( SegmentMap::const_iterator i=sm.begin(); i!=sm.end(); ++i ){
-				Entry& e = db[ i->first ];
-				e.f_ext = f_ext[ cnt++ ];
-			}
-		}
-        
-        
-        ///these are not RT safe...
-        /// maps are dangerous because might create element inadvertently
-        deque< SegmentMap::const_iterator > open;
-        vector< SegmentMap::const_iterator > processed; 
-        open.push_back( tree.getRootSegment() );
-
-        //Sweep from root to leaf
-        while( !open.empty() ){
-			SegmentMap::const_iterator te = open.front();
-			open.pop_front();
-			processed.push_back( te );
-			for( std::vector< SegmentMap::const_iterator >::const_iterator i=te->second.children.begin();
-			     i != te->second.children.end();
-			     ++i )
-			{
-				open.push_back( *i );
-			}
-			
-			
-			const Segment& seg = te->second.segment;
-			const Joint& jnt = seg.getJoint();
-			
-            double q_,qdot_,qdotdot_;
-            if(jnt.getType() !=Joint::None){
-				
-				int idx = jntdb[ jnt.getName() ].idx;
-                q_=q[idx];
-                qdot_=q_dot[idx];
-                qdotdot_=q_dotdot[idx];
-            }else
-                q_=qdot_=qdotdot_=0.0;
+        link2joint.resize(tree.getNrOfSegments(),tree.getNrOfSegments());
                 
-            Entry& e = db[seg.getName()];
+        seg_vector.resize(tree.getNrOfSegments());
+        
+        
+        //create necessary vectors
+        SegmentMap::const_iterator root, i;
+        
+        tree.getRootSegment(root);
+        for( unsigned int j=0; j < root->second.children.size(); j++ ) {
+            lambda_root.push_back(serialization.getIdLink(root->second.children[j]->first));
+        }
+        
+        for( SegmentMap::const_iterator i=sm.begin(); i!=sm.end(); ++i ) {
+            if( i != root ) {
+                unsigned int i_index = serialization.getIdLink(i->first);
+                seg_vector[i_index] = i;
                 
-            Frame& eX  = e.X;
-            Twist& eS  = e.S;
-            Twist& ev  = e.v;
-            Twist& ea  = e.a;
-            Wrench& ef = e.f;
-            Wrench& ef_ext = e.f_ext;
-            
-            string parent_name = "fake";
-            if( te->first != root_name )
-				parent_name = te->second.parent->first;
-            
-            Entry& parent_entry = db[parent_name];
-            Twist& parent_a = parent_entry.a;
-            Twist& parent_v = parent_entry.v;
-            
-            //Calculate segment properties: X,S,vj,cj
-            eX=seg.pose(q_);//Remark this is the inverse of the 
-                            //frame for transformations from 
-                            //the parent to the current coord frame
-            //Transform velocity and unit velocity to segment frame
-            Twist vj=eX.M.Inverse(seg.twist(q_,qdot_));
-            eS=eX.M.Inverse(seg.twist(q_,1.0));
-            //We can take cj=0, see remark section 3.5, page 55 since the unit velocity vector S of our joints is always time constant
-            //calculate velocity and acceleration of the segment (in segment coordinates)
-            if( te->first == root_name ){
-                ev=vj;
-                ea=eX.Inverse(ag)+eS*qdotdot_+ev*vj;
-            }else{
-                ev=eX.Inverse(parent_v)+vj;
-                ea=eX.Inverse(parent_a)+eS*qdotdot_+ev*vj;
+                for( unsigned int j=0; j < i->second.children.size(); j++ ) {
+                    lambda[i_index].push_back(serialization.getIdLink(i->second.children[j]->first));
+                }
+                
+                if( i->second.segment.getJoint().getType() != Joint::None ) {
+                    link2joint[i_index] = serialization.getIdJoint(i->second.children[j]->first);
+                }
+                
+                if( i->second.parent == root ) {
+                    lambda[i_index] = -1;
+                } else {
+                    lambda[i_index] = serialization.getIdLink(i->second.parent->first);
+                }
+                
             }
-            //Calculate the force for the joint
-            //Collect RigidBodyInertia and external forces
-            RigidBodyInertia Ii=seg.getInertia();
-            ef=Ii*ea+ev*(Ii*ev)-ef_ext;
-	    //std::cout << "a[i]=" << a[i] << "\n f[i]=" << f[i] << "\n S[i]" << S[i] << std::endl;
-        }
-        // process processed back to front...        
-        //Sweep from leaf to root
-        int size = processed.size()-1;
-        for(int i=size; i>0; i--){
-			SegmentMap::const_iterator te = processed[i];
-			const Segment& seg = te->second.segment;
-			const Joint& jnt = seg.getJoint();
-			Entry& e = db[seg.getName()];
-			Frame& eX = e.X;
-            Twist& eS = e.S;
-            Wrench& ef = e.f;
-            string parent_name = te->second.parent->first;
-			Entry& parent_e = db[parent_name];
-			Wrench& pre_f = parent_e.f;
-			
-			
-            if(jnt.getType()!=Joint::None)
-                jntdb[jnt.getName()].torque=dot(eS,ef);
-            pre_f +=eX*ef;
-        }
-        // do root element
-        // probably could hard code this lookup to make a little bit faster
-        { 
-			const TreeElement& te = tree.getRootSegment()->second;
-			const Segment& seg = te.segment;
-			const Joint& jnt = seg.getJoint();
-			Entry& e = db[root_name];
-			if( jnt.getType() != Joint::None )
-				jntdb[jnt.getName()].torque = dot( e.S, e.f );
 		}
-		for( map<string, JntEntry>::const_iterator i= jntdb.begin(); i!= jntdb.end(); ++i ){
-			torques(i->second.idx) = i->second.torque;
-		}
-	return 0;
+        
+        //As the order of the recursion is the same, it is calculated only at configuration
+        std::vector<unsigned int> index_stack;
+        
+        index_stack.reserve(tree.getNrOfSegments());
+        recursion_order.reserve(tree.getNrOfSegments());
+        
+        index_stack.clear();
+        recursion_order.clear();
+        
+        for( unsigned int j=0; j < mu_root.size(); j++ ) {
+            index_stack.push_back(mu_root[j]);
+        }
+        
+        while( !index_stack.empty() ) {
+            
+            unsigned int curr_index = index_stack.back();
+            index_stack.pop_back();
+            
+            recursion_order.push_back(curr_index);
+            
+            //Doing the recursion on the children
+            for( unsigned int j=0; j < mu[curr_index].size(); j++ ) {
+                index_stack.push_back(mu[curr_index][j]);
+            }
+        }
+        
+        assert(recursion_order.size() == tree.getNrOfSegments());
+        
     }
-
+    
     int TreeIdSolver_RNE::CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Wrenches& f_ext,JntArray &torques)
     {
-        //Check sizes when in debug mode
-        //if(q.rows()!=nj || q_dot.rows()!=nj || q_dotdot.rows()!=nj || torques.rows()!=nj || f_ext.size()!=ns)
-        //    return -1;
-        {
-			const SegmentMap& sm = tree.getSegments();
-			int cnt =0;
-			for( SegmentMap::const_iterator i=sm.begin(); i!=sm.end(); ++i ){
-				Entry& e = db[ i->first ];
-				e.f_ext = f_ext[ cnt++ ];
-			}
-		}
+        Wrench dummy;
+        return CartToJnt(q,q_dot,q_dotdot,Twist::Zero(),ag,f_ext,torques,dummy);
+    }
+
+    
+    int TreeIdSolver_RNE::CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Twist& base_velocity, const Twist& base_acceleration, const Wrenches& f_ext,JntArray &torques, Wrench& base_force)
+    {
         
-        ///these are not RT safe...
-        /// maps are dangerous because might create element inadvertently
-        deque< SegmentMap::const_iterator > open;
-        vector< SegmentMap::const_iterator > processed; 
-        open.push_back( tree.getRootSegment() );
+        unsigned int l;
 
         //Sweep from root to leaf
-        while( !open.empty() ){
-			SegmentMap::const_iterator te = open.front();
-			open.pop_front();
-			processed.push_back( te );
-			for( std::vector< SegmentMap::const_iterator >::const_iterator i=te->second.children.begin();
-			     i != te->second.children.end();
-			     ++i )
-			{
-				open.push_back( *i );
-			}
-			
-			
-			const Segment& seg = te->second.segment;
+        for( l = 0; l < recursion_order.size(); l++ ) {
+            
+            unsigned int curr_index = recursion_order[l];
+        
+			const Segment& seg = seg_vector[curr_index]->second.segment;
 			const Joint& jnt = seg.getJoint();
 			
             double q_,qdot_,qdotdot_;
             if(jnt.getType() !=Joint::None){
-				
-				int idx = jntdb[ jnt.getName() ].idx;
+				int idx = link2joint[curr_index];
                 q_=q(idx);
                 qdot_=q_dot(idx);
                 qdotdot_=q_dotdot(idx);
             }else
                 q_=qdot_=qdotdot_=0.0;
                 
-            Entry& e = db[seg.getName()];
+            Entry& e = db[curr_index];
                 
             Frame& eX  = e.X;
             Twist& eS  = e.S;
             Twist& ev  = e.v;
             Twist& ea  = e.a;
             Wrench& ef = e.f;
-            Wrench& ef_ext = e.f_ext;
-            
-            string parent_name = "fake";
-            if( te->first != root_name )
-				parent_name = te->second.parent->first;
-            
-            Entry& parent_entry = db[parent_name];
-            Twist& parent_a = parent_entry.a;
-            Twist& parent_v = parent_entry.v;
-            
+                        
+
             //Calculate segment properties: X,S,vj,cj
             eX=seg.pose(q_);//Remark this is the inverse of the 
                             //frame for transformations from 
@@ -264,53 +168,61 @@ namespace KDL{
             eS=eX.M.Inverse(seg.twist(q_,1.0));
             //We can take cj=0, see remark section 3.5, page 55 since the unit velocity vector S of our joints is always time constant
             //calculate velocity and acceleration of the segment (in segment coordinates)
-            if( te->first == root_name ){
-                ev=vj;
-                ea=eX.Inverse(ag)+eS*qdotdot_+ev*vj;
-            }else{
-                ev=eX.Inverse(parent_v)+vj;
-                ea=eX.Inverse(parent_a)+eS*qdotdot_+ev*vj;
+            
+            int parent_index = lambda[curr_index];
+            Twist parent_a, parent_v;
+            
+            if( parent_index == -1 ) {
+                parent_a = base_acceleration;
+                parent_v = base_velocity;
+            } else {
+                Entry& parent_entry = db[parent_index];
+            
+                parent_a = parent_entry.a;
+                parent_v = parent_entry.v;
             }
+            
+            ev=eX.Inverse(parent_v)+vj;
+            ea=eX.Inverse(parent_a)+eS*qdotdot_+ev*vj;
+            
             //Calculate the force for the joint
             //Collect RigidBodyInertia and external forces
             RigidBodyInertia Ii=seg.getInertia();
-            ef=Ii*ea+ev*(Ii*ev)-ef_ext;
-	    //std::cout << "a[i]=" << a[i] << "\n f[i]=" << f[i] << "\n S[i]" << S[i] << std::endl;
+            ef=Ii*ea+ev*(Ii*ev)-f_ext[curr_index];
+            //std::cout << "aLink " << seg.getName() << "\na= " << ea << "\nv= " << ev << "\nf= " << ef  << "\nf_ext= " << ef_ext << std::endl;
         }
+        
         // process processed back to front...        
-        //Sweep from leaf to root
-        int size = processed.size()-1;
-        for(int i=size; i>0; i--){
-			SegmentMap::const_iterator te = processed[i];
-			const Segment& seg = te->second.segment;
+        //Sweep from leafs to root, recursion order in reverse
+        for(l=recursion_order.size()-1; l >= 0; l--) {
+            unsigned int curr_index = recursion_order[l];
+            
+			const Segment& seg = seg_vector[curr_index];
 			const Joint& jnt = seg.getJoint();
-			Entry& e = db[seg.getName()];
+			Entry& e = db[curr_index];
 			Frame& eX = e.X;
             Twist& eS = e.S;
             Wrench& ef = e.f;
-            string parent_name = te->second.parent->first;
-			Entry& parent_e = db[parent_name];
-			Wrench& pre_f = parent_e.f;
-			
-			
+    
+            int parent_index = lambda[curr_index];
+            if( parent_index >= 0 ) {
+                Entry& parent_e = db[lambda[curr_index]];
+                Wrench& pre_f = parent_e.f;
+                pre_f +=eX*ef;
+            }
+
             if(jnt.getType()!=Joint::None)
-                jntdb[jnt.getName()].torque=dot(eS,ef);
-            pre_f +=eX*ef;
+                torques[link2joint[curr_index]]=dot(eS,ef);
         }
-        // do root element
-        // probably could hard code this lookup to make a little bit faster
-        { 
-			const TreeElement& te = tree.getRootSegment()->second;
-			const Segment& seg = te.segment;
-			const Joint& jnt = seg.getJoint();
-			Entry& e = db[root_name];
-			if( jnt.getType() != Joint::None )
-				jntdb[jnt.getName()].torque = dot( e.S, e.f );
-		}
-		for( map<string, JntEntry>::const_iterator i= jntdb.begin(); i!= jntdb.end(); ++i ){
-			torques(i->second.idx) = i->second.torque;
-		}
-	return 0;
+        base_force = db[0].f;
+        
+
+        //debug
+        //for( map<string, Entry>::const_iterator i= db.begin(); i!= db.end(); ++i ){
+            //std::cout << "bLink " << i->first << " a= " << i->second.a << " f= " << i->second.f << std::endl;
+		//}
+        
+        return 0;
     }
 
 
