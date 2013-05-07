@@ -39,7 +39,9 @@ namespace KDL{
     :tree(tree_)
     {
         //should compile only in debug mode
-        assert(serialization.is_consistent(tree));
+        if(!serialization.is_consistent(tree)) {
+            serialization = TreeSerialization(tree);
+        }
         
         //Get root name
 		root_name = tree.getRootSegment()->first;
@@ -66,26 +68,26 @@ namespace KDL{
         
         tree.getRootSegment(root);
         for( unsigned int j=0; j < root->second.children.size(); j++ ) {
-            lambda_root.push_back(serialization.getIdLink(root->second.children[j]->first));
+            mu_root.push_back(serialization.getLinkId(root->second.children[j]->first));
         }
         
         for( SegmentMap::const_iterator i=sm.begin(); i!=sm.end(); ++i ) {
             if( i != root ) {
-                unsigned int i_index = serialization.getIdLink(i->first);
+                unsigned int i_index = serialization.getLinkId(i->first);
                 seg_vector[i_index] = i;
                 
                 for( unsigned int j=0; j < i->second.children.size(); j++ ) {
-                    lambda[i_index].push_back(serialization.getIdLink(i->second.children[j]->first));
+                    mu[i_index].push_back(serialization.getLinkId(i->second.children[j]->first));
                 }
                 
                 if( i->second.segment.getJoint().getType() != Joint::None ) {
-                    link2joint[i_index] = serialization.getIdJoint(i->second.children[j]->first);
+                    link2joint[i_index] = serialization.getJointId(i->first);
                 }
                 
                 if( i->second.parent == root ) {
                     lambda[i_index] = -1;
                 } else {
-                    lambda[i_index] = serialization.getIdLink(i->second.parent->first);
+                    lambda[i_index] = serialization.getLinkId(i->second.parent->first);
                 }
                 
             }
@@ -197,7 +199,7 @@ namespace KDL{
         for(l=recursion_order.size()-1; l >= 0; l--) {
             unsigned int curr_index = recursion_order[l];
             
-			const Segment& seg = seg_vector[curr_index];
+			const Segment& seg = seg_vector[curr_index]->second.segment;
 			const Joint& jnt = seg.getJoint();
 			Entry& e = db[curr_index];
 			Frame& eX = e.X;
@@ -212,7 +214,7 @@ namespace KDL{
             }
 
             if(jnt.getType()!=Joint::None)
-                torques[link2joint[curr_index]]=dot(eS,ef);
+                torques(link2joint[curr_index])=dot(eS,ef);
         }
         base_force = db[0].f;
         

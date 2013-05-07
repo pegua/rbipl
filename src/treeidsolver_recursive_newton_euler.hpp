@@ -24,6 +24,7 @@
 #pragma once
 
 #include "treeidsolver.hpp"
+#include "treeserialization.hpp"
 
 namespace KDL{
     /**
@@ -45,7 +46,7 @@ namespace KDL{
          * \param tree The kinematic tree to calculate the inverse dynamics for, an internal copy will be made.
          * \param grav The gravity vector to use during the calculation.
          */
-        TreeIdSolver_RNE(const Tree& tree,Vector grav=Vector::Zero(),TreeSerialization serialization=TreeSerialization(tree));
+        TreeIdSolver_RNE(const Tree& tree,Vector grav=Vector::Zero(),TreeSerialization serialization=TreeSerialization());
         ~TreeIdSolver_RNE(){};
         
         /**
@@ -102,7 +103,7 @@ namespace KDL{
         
         std::vector<unsigned int> mu_root; //set of childrens of root
         std::vector< std::vector<unsigned int> > mu; //set of childrens of each segment
-        std::vector< int > lambda //set of parent of each segment
+        std::vector< int > lambda; //set of parent of each segment
         std::vector<unsigned int> link2joint;
         
         std::vector< unsigned int > recursion_order;

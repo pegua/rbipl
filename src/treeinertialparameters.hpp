@@ -32,18 +32,20 @@ namespace RBIPL {
      class TreeInertialParameters {
          private:
             void updateParams();
+            bool changeInertialParametersRecursive(const Eigen::VectorXd & new_chain_param, Tree & new_tree, SegmentMap::const_iterator root, const std::string& hook_name) ;
          
-            struct Entry{
-                Frame X;
-                Twist S;
-                Twist v;
-                Twist a;
-                Wrench f;
-                Wrench f_ext;
-            };
             const Tree & ref_tree;
             std::string root_name;
-            std::vector<Entry> db;	///indexed by segment id
+            
+            //Frame of link i with respect to the frame of link lambda[i]
+            std::vector<Frame> X;
+            std::vector<Twist> S;
+            std::vector<Twist> v;
+            std::vector<Twist> a;
+            std::vector<Wrench> f;
+            
+            //Frame of link i with respect to the base
+            std::vector<Frame> X_b;
             
             Eigen::VectorXd tree_param;
             
@@ -52,13 +54,28 @@ namespace RBIPL {
             
             Twist ag;
             
+            TreeSerialization serial;
+            
+            
+            std::vector<unsigned int> mu_root; //set of childrens of root
+            std::vector< std::vector<unsigned int> > mu; //set of childrens of each segment
+            std::vector< int > lambda; //set of parent of each segment
+            std::vector<unsigned int> link2joint;
+            
+            std::vector< unsigned int > recursion_order;
+            
+            std::vector<SegmentMap::const_iterator> seg_vector;
+            
+            //Indicator function
+            std::vector< std::vector<bool> > indicator_function;
+            
         public:
             /**
              * Constructor, it will allocate all the necessary memory.
              *
-             * @param chain the used chain, a reference of this chain is stored.
+             * @param tree the used tree, a reference to this tree is stored.
              */
-            TreeInertialParameters(Tree& tree, Vector grav=Vector::Zero(),const TreeSerialization & serialization=TreeSerialization(tree));
+            TreeInertialParameters(Tree& tree, Vector grav=Vector::Zero(),const TreeSerialization & serialization=TreeSerialization());
             ~TreeInertialParameters(){};
             
             Eigen::VectorXd getInertialParameters();

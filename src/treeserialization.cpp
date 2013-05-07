@@ -22,7 +22,14 @@ namespace KDL {
         }
         
     }
+    
+    TreeSerialization::TreeSerialization() 
+    {
+        links.clear();
+        joints.clear();
+    }
 
+    TreeSerialization::~TreeSerialization() {}
     
     TreeSerialization::TreeSerialization(const Tree & tree) 
     {
@@ -101,6 +108,15 @@ namespace KDL {
         return true;
         
     }
-    
+            
+    int TreeSerialization::getNrOfSegments() 
+    {
+        return links.size();
+    }
+        
+    int TreeSerialization::getNrOfJoints()
+    {
+        return joints.size();
+    }
 
 }

@@ -35,6 +35,7 @@ namespace KDL{
         std::vector<std::string> joints;
         
     public:
+        TreeSerialization();
         /**
          * Constructor that builds the default serialization for KDL::Tree
          * For joints the one used to build the q_nr attribute in KDL::TreeElement
@@ -58,6 +59,10 @@ namespace KDL{
         
         std::string getJointName(int joint_id);
         std::string getLinkName(int link_id);
+        
+        int getNrOfSegments();
+        
+        int getNrOfJoints();
         
         /**
          * Check if the TreeSerialization is a valid serialization for the 

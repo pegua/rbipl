@@ -40,6 +40,8 @@ namespace RBIPL {
     //Reconsider their location !! (not important that they are real time safe)
     bool ChainInertialParameters::changeInertialParameters(const Eigen::VectorXd & new_chain_param,  Chain& new_chain)
     {
+        new_chain = Chain();
+        
         //assert( new_chain_param.size() == chain_param.size() )
         if( chain_param.rows() != 10*ref_chain.getNrOfSegments() ) updateParams();
 
