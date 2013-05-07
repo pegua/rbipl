@@ -20,6 +20,9 @@ namespace RBIPL {
     void TreeInertialParameters::updateParams()
     {
         Segment seg;
+        
+        tree_param.resize(10*ns);
+        
         for(unsigned int i = 0; i < ns; i++ ) {
             seg = seg_vector[i]->second.segment;
             tree_param.segment(i*10,10) = Vectorize(seg.getInertia());
@@ -76,11 +79,11 @@ namespace RBIPL {
                                                                       a(ns),
                                                                       f(ns),
                                                                       X_b(ns),
-                                                                      serial(serialization)
+                                                                      serial(serialization),
+                                                                      indicator_function(ns)
     {
-        tree_param = Eigen::VectorXd(10*ns);
-        updateParams();
-        
+        //assert(X.size() == ns);
+        assert(S.size() == ns);
         //should compile only in debug mode
         if(!serial.is_consistent(ref_tree)) {
             serial = TreeSerialization(ref_tree);
@@ -134,6 +137,11 @@ namespace RBIPL {
             }
 		}
         
+        //The serialization is necessary before serializing the parameters        
+        tree_param = Eigen::VectorXd(10*ns);
+        updateParams();
+        
+        
         //As the order of the recursion is the same, it is calculated only at configuration
         std::vector<unsigned int> index_stack;
         
@@ -164,7 +172,7 @@ namespace RBIPL {
         
         //Compiling indicator function;
         for(unsigned int j=0; j < ns; j++ ) {
-            indicator_function[j].resize(nj,false);
+            indicator_function[j] = std::vector<bool>(nj,false);
         }
         
         for(unsigned int j=0; j < ns; j++ ) {
@@ -247,8 +255,11 @@ namespace RBIPL {
             Wrench& ef = f[curr_index];
             Frame& eX_b = X_b[curr_index];
 
+            assert(X.size() == ns);
             //Calculate segment properties: X,S,vj,cj
-            eX=seg.pose(q_);//Remark this is the inverse of the 
+            X[curr_index] = seg.pose(q_);
+            //eX=seg.pose(q_);
+                            //Remark this is the inverse of the 
                             //frame for transformations from 
                             //the parent to the current coord frame
             //Transform velocity and unit velocity to segment frame

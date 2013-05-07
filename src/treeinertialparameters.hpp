@@ -4,8 +4,8 @@
  * website: http://www.codyco.eu
  */
 
-#ifndef KDL_CHAIN_INERTIALPARAMETERS_HPP
-#define KDL_CHAIN_INERTIALPARAMETERS_HPP
+#ifndef KDL_TREE_INERTIALPARAMETERS_HPP
+#define KDL_TREE_INERTIALPARAMETERS_HPP
 
 #include "utils.hpp"
 #include "treeserialization.hpp"
@@ -37,6 +37,9 @@ namespace RBIPL {
             const Tree & ref_tree;
             std::string root_name;
             
+            unsigned int nj;
+            unsigned int ns;
+            
             //Frame of link i with respect to the frame of link lambda[i]
             std::vector<Frame> X;
             std::vector<Twist> S;
@@ -48,9 +51,7 @@ namespace RBIPL {
             std::vector<Frame> X_b;
             
             Eigen::VectorXd tree_param;
-            
-            unsigned int nj;
-            unsigned int ns;
+    
             
             Twist ag;
             

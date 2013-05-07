@@ -132,8 +132,11 @@ namespace KDL{
     
     int TreeIdSolver_RNE::CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Twist& base_velocity, const Twist& base_acceleration, const Wrenches& f_ext,JntArray &torques, Wrench& base_force)
     {
+        assert(torques.rows() == tree.getNrOfJoints());
         
-        unsigned int l;
+        base_force = Wrench::Zero();
+        
+        int l;
 
         //Sweep from root to leaf
         for( l = 0; l < recursion_order.size(); l++ ) {
@@ -211,12 +214,13 @@ namespace KDL{
                 Entry& parent_e = db[lambda[curr_index]];
                 Wrench& pre_f = parent_e.f;
                 pre_f +=eX*ef;
+            } else {
+                base_force += eX*ef;
             }
 
             if(jnt.getType()!=Joint::None)
                 torques(link2joint[curr_index])=dot(eS,ef);
         }
-        base_force = db[0].f;
         
 
         //debug

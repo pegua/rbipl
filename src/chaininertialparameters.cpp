@@ -24,6 +24,9 @@ namespace RBIPL {
     void ChainInertialParameters::updateParams()
     {
         Segment seg;
+        
+        chain_param.resize(10*ref_chain.getNrOfSegments());
+        
         for(unsigned int i = 0; i < ref_chain.getNrOfSegments(); i++ ) {
             ref_chain.getSegment(i,seg);
             chain_param.segment(i*10,10) = Vectorize(seg.getInertia());
@@ -122,7 +125,7 @@ namespace RBIPL {
 
         for(i=0;i<ns;i++) {
             //Updating frame
-            if( i != 0 ) X_b_i = X_b_i*X[i];
+             X_b_i = X_b_i*X[i];
             
             netWrenchRegressor_i = netWrenchRegressor(v[i],a[i]);
             
@@ -132,7 +135,7 @@ namespace RBIPL {
             unsigned int l = 0;
             for(j=0;j<=i;j++) {
                 if( j == 0 )
-                    X_j_i = X_b_i;
+                    X_j_i = X[j].Inverse()*X_b_i;
                 else
                     X_j_i = X[j].Inverse()*X_j_i;
                 

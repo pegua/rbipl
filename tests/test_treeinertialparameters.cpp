@@ -9,6 +9,7 @@
 #include <treeidsolver_recursive_newton_euler.hpp>
 
 #include <chaininertialparameters.hpp>
+#include <treeinertialparameters.hpp>
 
 #include <kdl/kinfam_io.hpp>
 #include <kdl/frames_io.hpp>
@@ -25,6 +26,22 @@ using namespace RBIPL;
 double random_double()
 {
     return (double)rand()/(double)RAND_MAX;
+}
+
+bool MultiplyRegressor(const MatrixXd & regressor, VectorXd & inertial_parameters, JntArray & torques, Wrench & base_force)
+{
+    Vector f,t;
+    if( regressor.cols() != inertial_parameters.rows() ) return false;
+    
+    VectorXd result = regressor*inertial_parameters;
+    
+    Map<Vector3d>(t.data) = result.segment(0,3);
+    Map<Vector3d>(f.data) = result.segment(3,3);
+    base_force = Wrench(f,t);
+    
+    torques.data = result.segment(6,result.rows()-6);
+
+    return true;
 }
 
 Chain Puma560_floating(){
@@ -110,15 +127,26 @@ void test_chain(Chain & puma) {
     unsigned int i;
     
     //Creating random state
-    JntArray q(nj), dq(nj), ddq(nj), tau(nj), tau_tree(nj);
+    JntArray q(nj), dq(nj), ddq(nj);
     Twist v_0, a_0; 
-    Wrench f_0, f_0_tree;
     std::vector<Wrench> f(ns);
 
     for(i = 0; i < ns; i++ ) {
         f[i] = Wrench::Zero();
     }
     
+    //Creating results vectors
+    std::vector<Wrench> f_0(4);
+    std::vector<JntArray> tau(4);
+    
+    
+    enum { CHAIN = 0, CHAIN_REGR = 1, TREE = 2, TREE_REGR = 3};
+    
+    tau[CHAIN] = JntArray(nj);
+    tau[CHAIN_REGR] = JntArray(nj);
+    tau[TREE] = JntArray(nj);
+    tau[TREE_REGR] = JntArray(nj);
+
     
     v_0 = Twist(Vector(random_double(),random_double(),random_double()),
                 Vector(random_double(),random_double(),random_double()));
@@ -126,9 +154,9 @@ void test_chain(Chain & puma) {
     a_0 = Twist(Vector(random_double(),random_double(),random_double()),
                 Vector(random_double(),random_double(),random_double()));
                 
-    cout << "Base a, v" << endl;
-    cout << a_0 << endl;
-    cout << v_0 << endl;
+    //cout << "Base a, v" << endl;
+    //cout << a_0 << endl;
+    //cout << v_0 << endl;
     
     for(i = 0; i < nj; i++ ) {
         q(i) = random_double();
@@ -139,57 +167,64 @@ void test_chain(Chain & puma) {
     //Instatiate objects
     ChainIdSolver_RNE_FB rne_solver(puma);
     ChainInertialParameters cip_solver(puma);
+    
     TreeIdSolver_RNE trne_solver(puma_tree);
-    
-    for(int i=0;i < f.size(); i++ ) { cout << "f_ext " << i << " " << f[i] << endl; }
-    
-    
-    //Solve dynamics
-    rne_solver.CartToJnt(q,dq,ddq,v_0,a_0,f,tau,f_0);
-    
-    for(int i=0;i < f.size(); i++ ) { cout << "f_ext " << i << " " << f[i] << endl; }
-
+    TreeInertialParameters tip_solver(puma_tree);
     
     
+    
+    //Solve chain dynamics
+    rne_solver.CartToJnt(q,dq,ddq,v_0,a_0,f,tau[CHAIN],f_0[CHAIN]);
     
     //Solve tree dynamics 
-    trne_solver.CartToJnt(q,dq,ddq,v_0,a_0,f,tau_tree,f_0_tree);
+    trne_solver.CartToJnt(q,dq,ddq,v_0,a_0,f,tau[TREE],f_0[TREE]);
     
-    for(int i=0;i < f.size(); i++ ) { cout << "f_ext " << i << " " << f[i] << endl; }
+    //for(int i=0;i < f.size(); i++ ) { cout << "f_ext " << i << " " << f[i] << endl; }
 
-    
-    VectorXd inertial_param = cip_solver.getInertialParameters();
     MatrixXd regressor(6+nj,10*ns);
-    regressor.setZero();
-    
     VectorXd extended_tau(nj);
+    VectorXd inertial_param ;
     
+    //Solve chain regressor dynamics
+    inertial_param = cip_solver.getInertialParameters();
     
-    //Get regressor
+    //Get chain regressor
     cip_solver.dynamicsRegressor(q,dq,ddq,v_0,a_0,regressor);
-
     
-    extended_tau = regressor*inertial_param;
+    MultiplyRegressor(regressor,inertial_param,tau[CHAIN_REGR],f_0[CHAIN_REGR]);
     
-    //cout << "Chain" << endl;
-    //cout << puma << endl;
     
-    //cout << "Tree" << endl;
-    //cout << puma_tree << endl;
+    //Solve tree regressor dynamics
+    inertial_param = tip_solver.getInertialParameters();
+    
+    //Get chain regressor
+    tip_solver.dynamicsRegressor(q,dq,ddq,v_0,a_0,regressor);
+    
+    MultiplyRegressor(regressor,inertial_param,tau[TREE_REGR],f_0[TREE_REGR]);
+    
+    
 
     cout << "~~~~~~~~~~~~~Dynamics with chain RNE~~~~~~~~~~~~~~~~~~~~~~~" << endl;
-    cout << f_0.torque.Norm() << " " << f_0.force.Norm() << endl;
-    cout << f_0 << endl;
-    for(i = 0; i < nj; i++ ) { cout << tau(i) << endl; }
+    //cout << f_0.torque.Norm() << " " << f_0.force.Norm() << endl;
+    cout << f_0[CHAIN] << endl;
+    for(i = 0; i < nj; i++ ) { cout << tau[CHAIN](i) << endl; }
     
     cout << "~~~~~~~~~~~~~Dynamics with tree RNE~~~~~~~~~~~~~~~~~~~~~~~" << endl;
-    cout << f_0_tree.torque.Norm() << " " << f_0_tree.force.Norm() << endl;
-    cout << f_0_tree << endl;
-    for(i = 0; i < nj; i++ ) { cout << tau_tree(i) << endl; }
+    //cout << f_0_tree.torque.Norm() << " " << f_0_tree.force.Norm() << endl;
+    cout << f_0[TREE] << endl;
+    for(i = 0; i < nj; i++ ) { cout << tau[TREE](i) << endl; }
     
-    cout << "~~~~~~~~~~~~~Dynamics with chain regressor~~~~~~~~~~~~~~~~~" << endl;
-    cout << extended_tau.segment(0,3).norm() << " " << extended_tau.segment(3,3).norm() << endl;
-    cout << extended_tau << endl;
+    cout << "~~~~~~~~~~~~~Dynamics with chain regressor~~~~~~~~~~~~~~~~~~~~~~~" << endl;
+    //cout << f_0.torque.Norm() << " " << f_0.force.Norm() << endl;
+    cout << f_0[CHAIN_REGR] << endl;
+    for(i = 0; i < nj; i++ ) { cout << tau[CHAIN_REGR](i) << endl; }
+    
+    cout << "~~~~~~~~~~~~~Dynamics with tree regressor~~~~~~~~~~~~~~~~~~~~~~~" << endl;
+    //cout << f_0_tree.torque.Norm() << " " << f_0_tree.force.Norm() << endl;
+    cout << f_0[TREE_REGR] << endl;
+    for(i = 0; i < nj; i++ ) { cout << tau[TREE_REGR](i) << endl; }
+    
+
 }
 
  

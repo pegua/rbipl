@@ -29,6 +29,8 @@ namespace KDL{
         X(ns),S(ns),v(ns),a(ns),f(ns)
     {
         ag=-Twist(grav,Vector::Zero());
+        assert(v.size() == ns);
+
     }
     
     int ChainIdSolver_RNE_FB::CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, const Wrenches& f_ext, JntArray &torques)
@@ -79,7 +81,7 @@ namespace KDL{
             //Collect RigidBodyInertia and external forces
             RigidBodyInertia Ii=segm.getInertia();
             f[i]=Ii*a[i]+v[i]*(Ii*v[i])-f_ext[i];
-            std::cout << "aLink " << segm.getName() << "\na= " << a[i]  << "\nv= " << v[i] << "\nf= " << f[i] << "\nf_ext= " << f_ext[i]  << std::endl;
+            //std::cout << "aLink " << segm.getName() << "\na= " << a[i]  << "\nv= " << v[i] << "\nf= " << f[i] << "\nf_ext= " << f_ext[i]  << std::endl;
             //std::cout << "a["<<i<<"]=" << a[i] << "\n f["<<i<<"]=" << f[i] << "\n S["<<i<<"]=" << S[i] << std::endl;
         }
         //Sweep from leaf to root
@@ -92,7 +94,7 @@ namespace KDL{
             if(i!=0)
                 f[i-1]=f[i-1]+X[i]*f[i];
         }
-        base_force = f[0];
+        base_force = X[0]*f[0];
         //debug
         for(int i=0; i < ns; i++) {
             Segment segm;

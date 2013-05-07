@@ -8,12 +8,15 @@
 #include <kdl/joint.hpp>
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 
 namespace KDL {
     
     void TreeSerialization::addDFSrecursive(SegmentMap::const_iterator current_el,int & link_cnt)
     {
-        joints[current_el->second.q_nr] = current_el->first;
+        if( current_el->second.segment.getJoint().getType() != Joint::None ) {
+            joints[current_el->second.q_nr] = current_el->first;
+        }
         links[link_cnt] = current_el->first;
         link_cnt++;
                 
@@ -93,18 +96,19 @@ namespace KDL {
         SegmentMap::const_iterator seg;
         if( tree.getNrOfJoints() != joints.size() || tree.getNrOfSegments() !=  links.size() ) return false;
         
+        
         unsigned int i;
         
         for(i = 0; i < links.size(); i++ ) {
             if( !tree.getSegment(links[i],seg) ) return false;
         }
         
+        
         for(i = 0; i < joints.size(); i++ ) {
             if( !tree.getSegment(joints[i],seg) ) return false;
-            
             if( seg->second.segment.getJoint().getType() == Joint::None ) return false;
+
         }
-      
         return true;
         
     }
