@@ -29,12 +29,12 @@ namespace RBIPL {
      * \brief class encapsulating methods relative to inertial parameters
      * \todo What if Chain changes?
      */
-     class TreeInertialParameters {
+     class TreeInertialParametersRegressor {
          private:
             void updateParams();
             bool changeInertialParametersRecursive(const Eigen::VectorXd & new_chain_param, Tree & new_tree, SegmentMap::const_iterator root, const std::string& hook_name) ;
          
-            const Tree & ref_tree;
+            const Tree tree;
             std::string root_name;
             
             unsigned int nj;

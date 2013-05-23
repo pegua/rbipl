@@ -14,7 +14,6 @@
 #include <kdl/tree.hpp>
 
 
-
 namespace RBIPL {
 
     void TreeInertialParameters::updateParams()

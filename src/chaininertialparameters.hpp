@@ -16,6 +16,8 @@
 #include <kdl/chain.hpp>
 #include <kdl/jntarray.hpp>
 
+#includ "parametersregressor.hpp"
+
 using namespace KDL;
 
 
@@ -28,7 +30,7 @@ namespace RBIPL {
      * \brief class encapsulating methods relative to inertial parameters
      * \todo What if Chain changes?
      */
-     class ChainInertialParameters {
+     class ChainDynamicsRegressorSolver : ParametersRegressorSolver {
          private:
             const Chain & ref_chain;
             Eigen::VectorXd chain_param;
@@ -51,8 +53,8 @@ namespace RBIPL {
              *
              * @param chain the used chain, a reference of this chain is stored.
              */
-            ChainInertialParameters(Chain& chain);
-            ~ChainInertialParameters(){};
+            ChainDynamicsRegressorSolver(Chain& chain);
+            ~ChainDynamicsRegressorSolverParameters(){};
             
             
             Eigen::VectorXd getInertialParameters();
@@ -66,16 +68,20 @@ namespace RBIPL {
              */
             bool changeInertialParameters(const Eigen::VectorXd & new_chain_param,  Chain& new_chain);
             
+            
+            int CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot, Eigen::MatrixXd & dynamics_regressor);
+
+            
             /**
              * Return the regressor for floating base dynamics 
              * 
              * It replicates the ChainIdSolver_RNE::CartToJnt, the only difference 
              * is it output the regressor matrix instead of result. 
              * 
-             * @param dynamics_regressor a (6+nj)x(10*ns) output matrix
+             * @param dynamics_regressor a (6+nj)x(np) output matrix
              *
              */
-            int dynamicsRegressor(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot,  const Twist& base_velocity, const Twist& base_acceleration, Eigen::MatrixXd & dynamics_regressor);
+            int CartToJnt(const JntArray &q, const JntArray &q_dot, const JntArray &q_dotdot,  const Twist& base_velocity, const Twist& base_acceleration, Eigen::MatrixXd & dynamics_regressor);
 
         };
 }
