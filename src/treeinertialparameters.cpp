@@ -291,6 +291,7 @@ namespace RBIPL {
             ea=eX.Inverse(parent_a)+eS*qdotdot_+ev*vj;
             
         }      
+        //end kinematic phase
         
         dynamics_regressor.setZero();
         
